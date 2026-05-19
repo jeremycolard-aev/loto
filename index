@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Loto Accessible</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    font-family: 'Georgia', 'Times New Roman', serif;
+  }
+  body {
+    background: #2a1810;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  /* Avertissement rotation */
+  #rotate-warning {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #2a1810;
+    color: #fbe81c;
+    z-index: 1000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    font-size: 1.2rem;
+  }
+  #rotate-warning .icon {
+    font-size: 5rem;
+    margin-bottom: 1rem;
+    animation: rotate 2s ease-in-out infinite;
+  }
+  @keyframes rotate {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+  }
+  @media (orientation: portrait) {
+    #rotate-warning { display: flex; }
+    #app { display: none !important; }
+  }
+
+  /* Container principal */
+  #app {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2vh;
+    position: relative;
+  }
+
+  /* Plaque de loto jaune */
+  #plaque {
+    background: #fbe81c;
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+    padding: 2vh 2vw;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 1.5vh;
+    box-shadow:
+      0 4px 12px rgba(0,0,0,0.5),
+      inset 0 2px 4px rgba(255,255,255,0.4),
+      inset 0 -2px 4px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Texture de la plaque (vieille kermesse) */
+  #plaque::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(0,0,0,0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(0,0,0,0.03) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  /* En-tête */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1vw;
+    color: #2a1810;
+    font-weight: bold;
+    position: relative;
+    z-index: 2;
+  }
+  #title {
+    font-size: 2.2vh;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  #mode-badge {
+    font-size: 1.8vh;
+    padding: 0.4vh 1.2vw;
+    border: 2px solid #2a1810;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.3);
+  }
+  #mode-badge.review {
+    background: #2a1810;
+    color: #fbe81c;
+  }
+
+  /* Grille */
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 0.5vh;
+    height: 100%;
+    position: relative;
+    z-index: 2;
+  }
+
+  .cell {
+    background: #fbe81c;
+    border: 3px solid #2a1810;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: min(8vh, 6vw);
+    font-weight: bold;
+    color: #2a1810;
+    font-family: 'Georgia', serif;
+    position: relative;
+    transition: transform 0.1s;
+  }
+
+  .cell.empty {
+    background: rgba(0,0,0,0.08);
+    border-style: dashed;
+    border-color: rgba(42, 24, 16, 0.3);
+  }
+
+  .cell.current {
+    transform: scale(1.05);
+    border-width: 5px;
+    box-shadow: 0 0 0 3px #d32f2f, 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 3;
+  }
+
+  /* Le jeton (pion qui marque la case) */
+  .cell.checked::after {
+    content: '';
+    position: absolute;
+    inset: 8%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4), transparent 50%),
+      radial-gradient(circle at 50% 50%, #c62828, #8b0000);
+    box-shadow:
+      inset 0 -3px 6px rgba(0,0,0,0.4),
+      0 2px 4px rgba(0,0,0,0.3);
+    opacity: 0.92;
+    pointer-events: none;
+  }
+
+  .cell.checked.current::after {
+    background:
+      radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4), transparent 50%),
+      radial-gradient(circle at 50% 50%, #1976d2, #0d47a1);
+  }
+
+  /* Pied : zones tactiles invisibles + reset */
+  #footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1vw;
+    font-size: 1.4vh;
+    color: rgba(42, 24, 16, 0.6);
+    position: relative;
+    z-index: 2;
+  }
+
+  #reset {
+    background: rgba(42, 24, 16, 0.15);
+    border: 1px solid rgba(42, 24, 16, 0.4);
+    color: #2a1810;
+    padding: 0.5vh 1.5vw;
+    border-radius: 4px;
+    font-size: 1.4vh;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  /* Zones tactiles latérales (transparentes par-dessus la plaque) */
+  .touch-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 12%;
+    z-index: 10;
+    cursor: pointer;
+  }
+  .touch-zone.left { left: 0; }
+  .touch-zone.right { right: 0; }
+  .touch-zone:active {
+    background: rgba(0,0,0,0.05);
+  }
+
+  /* Indicateurs visuels discrets pour les zones (utile pour aidant voyant) */
+  .touch-zone::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-style: solid;
+    opacity: 0.15;
+  }
+  .touch-zone.left::after {
+    left: 30%;
+    border-width: 12px 18px 12px 0;
+    border-color: transparent #2a1810 transparent transparent;
+  }
+  .touch-zone.right::after {
+    right: 30%;
+    border-width: 12px 0 12px 18px;
+    border-color: transparent transparent transparent #2a1810;
+  }
+
+  /* Zone centrale pour appui long (sur la grille) */
+  #center-tap {
+    position: absolute;
+    top: 0;
+    left: 12%;
+    right: 12%;
+    bottom: 0;
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<div id="rotate-warning">
+  <div class="icon">📱</div>
+  <div>Tournez votre téléphone</div>
+  <div style="font-size:0.9rem;margin-top:1rem;opacity:0.7;">Le loto se joue en mode paysage</div>
+</div>
+
+<div id="app">
+  <div id="plaque">
+    <div id="header">
+      <div id="title">★ Loto ★</div>
+      <div id="mode-badge">Mode Jeu</div>
+    </div>
+    <div id="grid"></div>
+    <div id="footer">
+      <span>◂ précédent · appui long = jeton · 2 doigts = mode · suivant ▸</span>
+      <button id="reset">Nouvelle plaque</button>
+    </div>
+    <div id="center-tap"></div>
+    <div class="touch-zone left" id="left"></div>
+    <div class="touch-zone right" id="right"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============ CONFIG AUDIO ============
+// Les fichiers audio sont à la racine du repo
+const AUDIO_PATH = './';
+const audioCache = {};
+
+function preloadAudio(name) {
+  if (audioCache[name]) return audioCache[name];
+  const audio = new Audio(AUDIO_PATH + name + '.wav');
+  audio.preload = 'auto';
+  audioCache[name] = audio;
+  return audio;
+}
+
+let currentAudio = null;
+function playAudio(name) {
+  // Couper le son en cours
+  if (currentAudio && !currentAudio.paused) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+  }
+  const audio = preloadAudio(name);
+  audio.currentTime = 0;
+  currentAudio = audio;
+  const playPromise = audio.play();
+  if (playPromise && playPromise.catch) {
+    playPromise.catch(e => console.warn('Audio play failed:', name, e.message));
+  }
+}
+
+// Joue une séquence : par exemple [23, 'ligne_2'] → on joue 23.wav puis ligne_2.wav
+function playSequence(names, gap) {
+  if (names.length === 0) return;
+  gap = gap || 80;
+  playAudio(names[0]);
+  if (names.length > 1) {
+    const audio = audioCache[names[0]];
+    audio.onended = () => {
+      audio.onended = null;
+      setTimeout(() => playSequence(names.slice(1), gap), gap);
+    };
+  }
+}
+
+// Précharger les phrases courantes au démarrage
+function preloadAll() {
+  ['carton_plein', 'deux_lignes_completes', 'mode_jeu', 'mode_revision', 'une_ligne_complete']
+    .forEach(preloadAudio);
+  // Précharger les numéros 1-90 (loto français)
+  for (let i = 1; i <= 90; i++) preloadAudio(i);
+}
+
+// ============ SONS GÉNÉRÉS (bips de navigation) ============
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { console.error('AudioContext', e); }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function beep(freq, duration, type, volume) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(volume || 0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch (e) {}
+}
+
+function lineBeeps(lineNum) {
+  for (let i = 0; i <= lineNum; i++) {
+    setTimeout(() => beep(800, 0.06, 'sine', 0.2), i * 90);
+  }
+}
+function checkSound() {
+  beep(900, 0.08, 'triangle', 0.25);
+  setTimeout(() => beep(1300, 0.12, 'triangle', 0.25), 60);
+}
+function uncheckSound() {
+  beep(700, 0.08, 'triangle', 0.25);
+  setTimeout(() => beep(450, 0.12, 'triangle', 0.25), 60);
+}
+function modeChangeSound() { beep(500, 0.15, 'sawtooth', 0.12); }
+
+// ============ GÉNÉRATION GRILLE ============
+function generateGrid() {
+  const grid = [[], [], []];
+  const cells = Array(3).fill(null).map(() => Array(9).fill(false));
+  for (let r = 0; r < 3; r++) {
+    const cols = [];
+    while (cols.length < 5) {
+      const c = Math.floor(Math.random() * 9);
+      if (cols.indexOf(c) === -1) cols.push(c);
+    }
+    cols.forEach(c => cells[r][c] = true);
+  }
+  const used = new Set();
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 9; c++) {
+      if (cells[r][c]) {
+        const min = c === 0 ? 1 : c * 10;
+        const max = c === 8 ? 90 : c * 10 + 9;
+        let num;
+        do { num = min + Math.floor(Math.random() * (max - min + 1)); } while (used.has(num));
+        used.add(num);
+        grid[r].push({ col: c, num: num, checked: false });
+      }
+    }
+    grid[r].sort((a, b) => a.num - b.num);
+  }
+  return grid;
+}
+
+// ============ ÉTAT ============
+let grid;
+let flatPositions = [];
+let currentIdx = 0;
+let mode = 'play';
+let lastLine = -1;
+
+function rebuildFlat() {
+  flatPositions = [];
+  for (let r = 0; r < 3; r++) {
+    grid[r].forEach((cell, i) => {
+      flatPositions.push({ row: r, idxInRow: i, num: cell.num, col: cell.col });
+    });
+  }
+}
+
+function isChecked(idx) {
+  const p = flatPositions[idx];
+  return grid[p.row][p.idxInRow].checked;
+}
+
+// ============ NAVIGATION ============
+function getVisibleIndices() {
+  const result = [];
+  for (let i = 0; i < flatPositions.length; i++) {
+    const c = isChecked(i);
+    if (mode === 'play' && !c) result.push(i);
+    if (mode === 'review' && c) result.push(i);
+  }
+  return result;
+}
+
+function navigate(direction) {
+  const visible = getVisibleIndices();
+  if (visible.length === 0) {
+    // Rien à dire : on joue juste un bip discret
+    beep(400, 0.15, 'sine', 0.15);
+    return;
+  }
+  let pos = visible.indexOf(currentIdx);
+  if (pos === -1) {
+    pos = 0;
+    for (let i = 0; i < visible.length; i++) {
+      if (visible[i] >= currentIdx) { pos = i; break; }
+      if (i === visible.length - 1) pos = visible.length - 1;
+    }
+  } else {
+    pos = direction === 'next'
+      ? (pos + 1) % visible.length
+      : (pos - 1 + visible.length) % visible.length;
+  }
+  currentIdx = visible[pos];
+  const p = flatPositions[currentIdx];
+
+  // Bip de changement de ligne
+  if (p.row !== lastLine && lastLine !== -1) {
+    lineBeeps(p.row);
+    // Petit délai avant l'annonce vocale pour laisser passer les bips
+    setTimeout(() => playAudio(p.num), 120 + (p.row * 90));
+  } else {
+    playAudio(p.num);
+  }
+  lastLine = p.row;
+  render();
+}
+
+// ============ ACTIONS ============
+function toggleCurrent() {
+  const p = flatPositions[currentIdx];
+  if (!p) return;
+  const cell = grid[p.row][p.idxInRow];
+  cell.checked = !cell.checked;
+  if (cell.checked) {
+    checkSound();
+    setTimeout(() => {
+      playAudio(p.num);
+      checkVictoryAfter(p);
+    }, 180);
+  } else {
+    uncheckSound();
+    setTimeout(() => playAudio(p.num), 180);
+  }
+  render();
+}
+
+function checkVictoryAfter(p) {
+  // On déclenche la phrase de victoire après que le numéro ait été annoncé
+  const completed = grid.filter(row => row.every(c => c.checked)).length;
+  const total = flatPositions.length;
+  const checked = flatPositions.filter((_, i) => isChecked(i)).length;
+
+  let victoryAudio = null;
+  if (checked === total) victoryAudio = 'carton_plein';
+  else if (completed === 2) victoryAudio = 'deux_lignes_completes';
+  else if (completed === 1) victoryAudio = 'une_ligne_complete';
+
+  if (victoryAudio) {
+    const numAudio = audioCache[p.num];
+    if (numAudio) {
+      numAudio.onended = () => {
+        numAudio.onended = null;
+        setTimeout(() => playAudio(victoryAudio), 200);
+      };
+    } else {
+      setTimeout(() => playAudio(victoryAudio), 600);
+    }
+  }
+}
+
+function toggleMode() {
+  mode = mode === 'play' ? 'review' : 'play';
+  modeChangeSound();
+  setTimeout(() => playAudio(mode === 'play' ? 'mode_jeu' : 'mode_revision'), 180);
+  render();
+}
+
+// ============ RENDU ============
+function buildGridDOM() {
+  const gridEl = document.getElementById('grid');
+  gridEl.innerHTML = '';
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 9; c++) {
+      const cell = grid[r].find(x => x.col === c);
+      const div = document.createElement('div');
+      div.className = 'cell' + (cell ? '' : ' empty');
+      div.dataset.row = r;
+      div.dataset.col = c;
+      if (cell) {
+        div.textContent = cell.num;
+        div.dataset.num = cell.num;
+      }
+      gridEl.appendChild(div);
+    }
+  }
+}
+
+function render() {
+  const badge = document.getElementById('mode-badge');
+  badge.textContent = mode === 'play' ? 'Mode Jeu' : 'Mode Révision';
+  badge.className = mode === 'review' ? 'review' : '';
+
+  const p = flatPositions[currentIdx];
+  const cells = document.querySelectorAll('.cell');
+  cells.forEach(cellEl => {
+    const r = parseInt(cellEl.dataset.row);
+    const c = parseInt(cellEl.dataset.col);
+    const cellData = grid[r].find(x => x.col === c);
+    cellEl.classList.remove('current', 'checked');
+    if (cellData) {
+      if (cellData.checked) cellEl.classList.add('checked');
+      if (p && cellData.num === p.num) cellEl.classList.add('current');
+    }
+  });
+}
+
+// ============ EVENTS ============
+let longPressTimer = null;
+
+document.getElementById('left').addEventListener('click', (e) => {
+  e.stopPropagation();
+  getAudioCtx();
+  navigate('prev');
+});
+document.getElementById('right').addEventListener('click', (e) => {
+  e.stopPropagation();
+  getAudioCtx();
+  navigate('next');
+});
+
+const centerTap = document.getElementById('center-tap');
+
+centerTap.addEventListener('touchstart', (e) => {
+  getAudioCtx();
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    toggleMode();
+    return;
+  }
+  longPressTimer = setTimeout(toggleCurrent, 500);
+}, { passive: false });
+centerTap.addEventListener('touchend', () => clearTimeout(longPressTimer));
+centerTap.addEventListener('touchmove', () => clearTimeout(longPressTimer));
+centerTap.addEventListener('touchcancel', () => clearTimeout(longPressTimer));
+
+centerTap.addEventListener('mousedown', () => {
+  getAudioCtx();
+  longPressTimer = setTimeout(toggleCurrent, 500);
+});
+centerTap.addEventListener('mouseup', () => clearTimeout(longPressTimer));
+centerTap.addEventListener('mouseleave', () => clearTimeout(longPressTimer));
+
+document.addEventListener('keydown', (e) => {
+  getAudioCtx();
+  if (e.key === 'ArrowLeft') navigate('prev');
+  if (e.key === 'ArrowRight') navigate('next');
+  if (e.key === 'm' || e.key === 'M') toggleMode();
+  if (e.key === ' ') { e.preventDefault(); toggleCurrent(); }
+});
+
+document.getElementById('reset').addEventListener('click', (e) => {
+  e.stopPropagation();
+  init();
+});
+
+// ============ INIT ============
+function init() {
+  grid = generateGrid();
+  rebuildFlat();
+  currentIdx = 0;
+  mode = 'play';
+  lastLine = flatPositions[0].row;
+  buildGridDOM();
+  render();
+}
+
+preloadAll();
+init();
+</script>
+</body>
+</html>
