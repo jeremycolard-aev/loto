@@ -2,8 +2,20 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Loto Accessible</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#fbe81c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Loto">
+<link rel="icon" type="image/png" sizes="192x192" href="logo192x192.png">
+<link rel="apple-touch-icon" href="logo192x192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="logo512x512.png">
+
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -48,7 +60,6 @@
     #app { display: none !important; }
   }
 
-  /* Container principal */
   #app {
     width: 100vw;
     height: 100vh;
@@ -59,7 +70,6 @@
     position: relative;
   }
 
-  /* Plaque de loto jaune */
   #plaque {
     background: #fbe81c;
     width: 100%;
@@ -77,7 +87,6 @@
     overflow: hidden;
   }
 
-  /* Texture de la plaque (vieille kermesse) */
   #plaque::before {
     content: '';
     position: absolute;
@@ -88,7 +97,6 @@
     pointer-events: none;
   }
 
-  /* En-tête */
   #header {
     display: flex;
     align-items: center;
@@ -116,7 +124,6 @@
     color: #fbe81c;
   }
 
-  /* Grille */
   #grid {
     display: grid;
     grid-template-columns: repeat(9, 1fr);
@@ -155,7 +162,6 @@
     z-index: 3;
   }
 
-  /* Le jeton (pion qui marque la case) */
   .cell.checked::after {
     content: '';
     position: absolute;
@@ -177,7 +183,6 @@
       radial-gradient(circle at 50% 50%, #1976d2, #0d47a1);
   }
 
-  /* Pied : zones tactiles invisibles + reset */
   #footer {
     display: flex;
     align-items: center;
@@ -200,7 +205,6 @@
     cursor: pointer;
   }
 
-  /* Zones tactiles latérales (transparentes par-dessus la plaque) */
   .touch-zone {
     position: absolute;
     top: 0;
@@ -211,11 +215,8 @@
   }
   .touch-zone.left { left: 0; }
   .touch-zone.right { right: 0; }
-  .touch-zone:active {
-    background: rgba(0,0,0,0.05);
-  }
+  .touch-zone:active { background: rgba(0,0,0,0.05); }
 
-  /* Indicateurs visuels discrets pour les zones (utile pour aidant voyant) */
   .touch-zone::after {
     content: '';
     position: absolute;
@@ -237,7 +238,6 @@
     border-color: transparent transparent transparent #2a1810;
   }
 
-  /* Zone centrale pour appui long (sur la grille) */
   #center-tap {
     position: absolute;
     top: 0;
@@ -276,8 +276,6 @@
 <script>
 'use strict';
 
-// ============ CONFIG AUDIO ============
-// Les fichiers audio sont à la racine du repo
 const AUDIO_PATH = './';
 const audioCache = {};
 
@@ -291,7 +289,6 @@ function preloadAudio(name) {
 
 let currentAudio = null;
 function playAudio(name) {
-  // Couper le son en cours
   if (currentAudio && !currentAudio.paused) {
     currentAudio.pause();
     currentAudio.currentTime = 0;
@@ -305,29 +302,12 @@ function playAudio(name) {
   }
 }
 
-// Joue une séquence : par exemple [23, 'ligne_2'] → on joue 23.wav puis ligne_2.wav
-function playSequence(names, gap) {
-  if (names.length === 0) return;
-  gap = gap || 80;
-  playAudio(names[0]);
-  if (names.length > 1) {
-    const audio = audioCache[names[0]];
-    audio.onended = () => {
-      audio.onended = null;
-      setTimeout(() => playSequence(names.slice(1), gap), gap);
-    };
-  }
-}
-
-// Précharger les phrases courantes au démarrage
 function preloadAll() {
   ['carton_plein', 'deux_lignes_completes', 'mode_jeu', 'mode_revision', 'une_ligne_complete']
     .forEach(preloadAudio);
-  // Précharger les numéros 1-90 (loto français)
   for (let i = 1; i <= 90; i++) preloadAudio(i);
 }
 
-// ============ SONS GÉNÉRÉS (bips de navigation) ============
 let audioCtx = null;
 function getAudioCtx() {
   if (!audioCtx) {
@@ -370,7 +350,6 @@ function uncheckSound() {
 }
 function modeChangeSound() { beep(500, 0.15, 'sawtooth', 0.12); }
 
-// ============ GÉNÉRATION GRILLE ============
 function generateGrid() {
   const grid = [[], [], []];
   const cells = Array(3).fill(null).map(() => Array(9).fill(false));
@@ -399,7 +378,6 @@ function generateGrid() {
   return grid;
 }
 
-// ============ ÉTAT ============
 let grid;
 let flatPositions = [];
 let currentIdx = 0;
@@ -420,7 +398,6 @@ function isChecked(idx) {
   return grid[p.row][p.idxInRow].checked;
 }
 
-// ============ NAVIGATION ============
 function getVisibleIndices() {
   const result = [];
   for (let i = 0; i < flatPositions.length; i++) {
@@ -434,7 +411,6 @@ function getVisibleIndices() {
 function navigate(direction) {
   const visible = getVisibleIndices();
   if (visible.length === 0) {
-    // Rien à dire : on joue juste un bip discret
     beep(400, 0.15, 'sine', 0.15);
     return;
   }
@@ -453,10 +429,8 @@ function navigate(direction) {
   currentIdx = visible[pos];
   const p = flatPositions[currentIdx];
 
-  // Bip de changement de ligne
   if (p.row !== lastLine && lastLine !== -1) {
     lineBeeps(p.row);
-    // Petit délai avant l'annonce vocale pour laisser passer les bips
     setTimeout(() => playAudio(p.num), 120 + (p.row * 90));
   } else {
     playAudio(p.num);
@@ -465,7 +439,6 @@ function navigate(direction) {
   render();
 }
 
-// ============ ACTIONS ============
 function toggleCurrent() {
   const p = flatPositions[currentIdx];
   if (!p) return;
@@ -485,7 +458,6 @@ function toggleCurrent() {
 }
 
 function checkVictoryAfter(p) {
-  // On déclenche la phrase de victoire après que le numéro ait été annoncé
   const completed = grid.filter(row => row.every(c => c.checked)).length;
   const total = flatPositions.length;
   const checked = flatPositions.filter((_, i) => isChecked(i)).length;
@@ -515,7 +487,6 @@ function toggleMode() {
   render();
 }
 
-// ============ RENDU ============
 function buildGridDOM() {
   const gridEl = document.getElementById('grid');
   gridEl.innerHTML = '';
@@ -554,7 +525,6 @@ function render() {
   });
 }
 
-// ============ EVENTS ============
 let longPressTimer = null;
 
 document.getElementById('left').addEventListener('click', (e) => {
@@ -603,7 +573,6 @@ document.getElementById('reset').addEventListener('click', (e) => {
   init();
 });
 
-// ============ INIT ============
 function init() {
   grid = generateGrid();
   rebuildFlat();
@@ -616,6 +585,15 @@ function init() {
 
 preloadAll();
 init();
+
+// ============ ENREGISTREMENT SERVICE WORKER ============
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.warn('SW registration failed:', err));
+  });
+}
 </script>
 </body>
 </html>
