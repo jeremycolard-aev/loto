@@ -351,29 +351,34 @@ function uncheckSound() {
 function modeChangeSound() { beep(500, 0.15, 'sawtooth', 0.12); }
 
 function generateGrid() {
-  const grid = [[], [], []];
-  const cells = Array(3).fill(null).map(() => Array(9).fill(false));
-  for (let r = 0; r < 3; r++) {
-    const cols = [];
-    while (cols.length < 5) {
-      const c = Math.floor(Math.random() * 9);
-      if (cols.indexOf(c) === -1) cols.push(c);
-    }
-    cols.forEach(c => cells[r][c] = true);
+  // Plaque simplifiée : 15 numéros tirés au hasard entre 1 et 90, triés croissant,
+  // puis répartis 5 par ligne (ligne 1 = les 5 plus petits, ligne 2 = les 5 du milieu,
+  // ligne 3 = les 5 plus grands). Chaque numéro est placé dans la colonne qui correspond
+  // à sa dizaine (1-9 → col 0, 10-19 → col 1, ..., 80-90 → col 8).
+  const nums = [];
+  while (nums.length < 15) {
+    const n = 1 + Math.floor(Math.random() * 90);
+    if (nums.indexOf(n) === -1) nums.push(n);
   }
-  const used = new Set();
+  nums.sort((a, b) => a - b);
+
+  const grid = [[], [], []];
   for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 9; c++) {
-      if (cells[r][c]) {
-        const min = c === 0 ? 1 : c * 10;
-        const max = c === 8 ? 90 : c * 10 + 9;
-        let num;
-        do { num = min + Math.floor(Math.random() * (max - min + 1)); } while (used.has(num));
-        used.add(num);
-        grid[r].push({ col: c, num: num, checked: false });
+    const slice = nums.slice(r * 5, r * 5 + 5);
+    // Garantir que deux numéros de la même ligne ne tombent pas dans la même colonne :
+    // si collision, on retire et on retire au sort. Pour rester simple et déterministe,
+    // on calcule la colonne et si collision on décale.
+    const usedCols = new Set();
+    slice.forEach(num => {
+      let col = num === 90 ? 8 : Math.floor(num / 10);
+      // En cas de collision (rare), on prend la colonne libre la plus proche
+      while (usedCols.has(col)) {
+        col = (col + 1) % 9;
       }
-    }
-    grid[r].sort((a, b) => a.num - b.num);
+      usedCols.add(col);
+      grid[r].push({ col: col, num: num, checked: false });
+    });
+    grid[r].sort((a, b) => a.col - b.col);
   }
   return grid;
 }
@@ -446,10 +451,9 @@ function toggleCurrent() {
   cell.checked = !cell.checked;
   if (cell.checked) {
     checkSound();
-    setTimeout(() => {
-      playAudio(p.num);
-      checkVictoryAfter(p);
-    }, 180);
+    setTimeout(() => playAudio(p.num), 180);
+    // Vérifier la victoire après lecture du numéro
+    setTimeout(() => checkVictoryAfter(), 1400);
   } else {
     uncheckSound();
     setTimeout(() => playAudio(p.num), 180);
@@ -457,7 +461,7 @@ function toggleCurrent() {
   render();
 }
 
-function checkVictoryAfter(p) {
+function checkVictoryAfter() {
   const completed = grid.filter(row => row.every(c => c.checked)).length;
   const total = flatPositions.length;
   const checked = flatPositions.filter((_, i) => isChecked(i)).length;
@@ -468,22 +472,14 @@ function checkVictoryAfter(p) {
   else if (completed === 1) victoryAudio = 'une_ligne_complete';
 
   if (victoryAudio) {
-    const numAudio = audioCache[p.num];
-    if (numAudio) {
-      numAudio.onended = () => {
-        numAudio.onended = null;
-        setTimeout(() => playAudio(victoryAudio), 200);
-      };
-    } else {
-      setTimeout(() => playAudio(victoryAudio), 600);
-    }
+    playAudio(victoryAudio);
   }
 }
 
 function toggleMode() {
   mode = mode === 'play' ? 'review' : 'play';
   modeChangeSound();
-  setTimeout(() => playAudio(mode === 'play' ? 'mode_jeu' : 'mode_revision'), 180);
+  setTimeout(() => playAudio(mode === 'play' ? 'mode_jeu' : 'mode_revision'), 200);
   render();
 }
 
